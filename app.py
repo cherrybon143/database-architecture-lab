@@ -1,0 +1,46 @@
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///pos.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    stock = db.Column(db.Integer, nullable=False)
+
+@app.route("/products", methods=["GET"])
+def get_products():
+    products = Product.query.all()
+    return jsonify([{"id": p.id, "name": p.name, "price": p.price, "stock": p.stock} for p in products])
+
+@app.route("/add_product", methods=["POST"])
+def add_product():
+    data = request.json
+    if not data or "name" not in data or "price" not in data or "stock" not in data:
+        return jsonify({"error": "Invalid request data"}), 400
+    
+    new_product = Product(name=data["name"], price=data["price"], stock=data["stock"])
+    db.session.add(new_product)
+    db.session.commit()
+    return jsonify({"message": f"Product '{new_product.name}' added successfully!"}), 201
+
+@app.route("/delete_product/<int:id>", methods=["DELETE"])
+def delete_product(id):
+    product = Product.query.get(id)
+    if product:
+        db.session.delete(product)
+        db.session.commit()
+        return jsonify({"message": f"Product '{product.name}' deleted successfully!"}), 200
+    return jsonify({"error": "Product not found"}), 404
+
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, port=5000)
